@@ -875,6 +875,45 @@ app.get("/setup/export", requireSetupAuth, async (_req, res) => {
   stream.pipe(res);
 });
 
+// ─── Deploy File API ──────────────────────────────────────────────────────
+// Accepts hex-encoded file content and writes it to the container filesystem.
+// Used by the provisioning engine to deploy workspace files and skills.
+// Auth: Bearer token must match SETUP_PASSWORD.
+
+function requireBearerAuth(req, res, next) {
+  if (!SETUP_PASSWORD) {
+    return res.status(500).send("SETUP_PASSWORD not set");
+  }
+  const header = req.headers.authorization || "";
+  const [scheme, token] = header.split(" ");
+  if (scheme !== "Bearer" || token !== SETUP_PASSWORD) {
+    return res.status(401).send("Auth required");
+  }
+  next();
+}
+
+app.post("/api/deploy-file", requireBearerAuth, (req, res) => {
+  try {
+    const { path: remotePath, hex } = req.body;
+    if (!remotePath || !hex) {
+      return res.status(400).json({ error: "path and hex are required" });
+    }
+
+    // Ensure parent directory exists
+    const dir = path.dirname(remotePath);
+    fs.mkdirSync(dir, { recursive: true });
+
+    // Decode hex and write file
+    const content = Buffer.from(hex, "hex");
+    fs.writeFileSync(remotePath, content);
+
+    res.json({ ok: true, path: remotePath, bytes: content.length });
+  } catch (err) {
+    console.error("[deploy-file]", err);
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 // Proxy everything else to the gateway.
 const proxy = httpProxy.createProxyServer({
   target: GATEWAY_TARGET,
