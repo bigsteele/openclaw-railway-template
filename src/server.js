@@ -188,29 +188,6 @@ async function startGateway() {
 
   console.log(`[gateway] ========== TOKEN SYNC COMPLETE ==========`);
 
-  // Patch Control UI SPA: the bundled UI uses mode:"webchat" for its
-  // WebSocket connect params, but gateway v2026.2.27+ only accepts
-  // "backend", "cli", or "ui". Rewrite in-place before gateway starts.
-  try {
-    const uiAssetsDir = path.join(
-      path.dirname(OPENCLAW_ENTRY),
-      "control-ui",
-      "assets",
-    );
-    if (fs.existsSync(uiAssetsDir)) {
-      for (const f of fs.readdirSync(uiAssetsDir)) {
-        if (!f.endsWith(".js")) continue;
-        const fp = path.join(uiAssetsDir, f);
-        const src = fs.readFileSync(fp, "utf8");
-        if (src.includes('WEBCHAT:"webchat"')) {
-          fs.writeFileSync(fp, src.replaceAll('WEBCHAT:"webchat"', 'WEBCHAT:"ui"'));
-          console.log(`[gateway] Patched Control UI ${f}: WEBCHAT:"webchat" -> WEBCHAT:"ui"`);
-        }
-      }
-    }
-  } catch (err) {
-    console.log(`[gateway] Control UI patch skipped: ${err.message}`);
-  }
 
   const args = [
     "gateway",
@@ -667,10 +644,16 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
           String(INTERNAL_GATEWAY_PORT),
         ]),
       );
-      // Allow Control UI access without device pairing (fixes error 1008: pairing required)
+      // Allow Control UI access without device pairing
       await runCmd(
         OPENCLAW_NODE,
         clawArgs(["config", "set", "gateway.controlUi.allowInsecureAuth", "true"]),
+      );
+      // Disable device auth entirely — the SPA always generates an Ed25519 keypair
+      // over HTTPS, which triggers pairing flow. This bypasses it.
+      await runCmd(
+        OPENCLAW_NODE,
+        clawArgs(["config", "set", "gateway.controlUi.dangerouslyDisableDeviceAuth", "true"]),
       );
       // Auto-configure Control UI allowed origins from Railway domain
       const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN;
