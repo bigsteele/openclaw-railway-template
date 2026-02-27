@@ -202,9 +202,9 @@ async function startGateway() {
         if (!f.endsWith(".js")) continue;
         const fp = path.join(uiAssetsDir, f);
         const src = fs.readFileSync(fp, "utf8");
-        if (src.includes('mode:"webchat"')) {
-          fs.writeFileSync(fp, src.replace(/mode:"webchat"/g, 'mode:"ui"'));
-          console.log(`[gateway] Patched Control UI ${f}: mode:"webchat" -> mode:"ui"`);
+        if (src.includes('WEBCHAT:"webchat"')) {
+          fs.writeFileSync(fp, src.replaceAll('WEBCHAT:"webchat"', 'WEBCHAT:"ui"'));
+          console.log(`[gateway] Patched Control UI ${f}: WEBCHAT:"webchat" -> WEBCHAT:"ui"`);
         }
       }
     }
