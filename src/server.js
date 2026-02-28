@@ -685,13 +685,19 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
             "\n[telegram] skipped (this openclaw build does not list telegram in `channels add --help`)\n";
         } else {
           // Avoid `channels add` here (it has proven flaky across builds); write config directly.
+          // v2026.2.27+ requires the "accounts" pattern — flat botToken shows "SETUP / no token".
           const token = payload.telegramToken.trim();
           const cfgObj = {
             enabled: true,
-            dmPolicy: "pairing",
-            botToken: token,
-            groupPolicy: "allowlist",
-            streamMode: "partial",
+            accounts: {
+              main: {
+                enabled: true,
+                dmPolicy: "pairing",
+                botToken: token,
+                groupPolicy: "allowlist",
+                streaming: "partial",
+              },
+            },
           };
           const set = await runCmd(
             OPENCLAW_NODE,
@@ -702,6 +708,16 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
               "channels.telegram",
               JSON.stringify(cfgObj),
             ]),
+          );
+          // Also enable the Telegram plugin
+          await runCmd(
+            OPENCLAW_NODE,
+            clawArgs(["config", "set", "--json", "plugins.entries.telegram", JSON.stringify({ enabled: true })]),
+          );
+          // Add agent binding for Telegram account
+          await runCmd(
+            OPENCLAW_NODE,
+            clawArgs(["config", "set", "--json", "bindings", JSON.stringify([{ agentId: "main", match: { channel: "telegram", accountId: "main" } }])]),
           );
           const get = await runCmd(
             OPENCLAW_NODE,
